@@ -14,32 +14,19 @@
     <%}%>
 <style>
   canvas {width:550px;}
-</style
+</style>
 </head>
 <body>
-<script>
-    var values = [0];
-    var labels = ['A'];
-
-    <%
-    for(var t = 0; t < temperaturer.length; t++){
-        var temp = temperaturer[t][0];
-        var time = temperaturer[t][1];
-	%>
-        labels[<%=t%>] = "<%=time%>";
-        values[<%=t%>] = <%=temp%>;
-	<%
-    }
-    %>
-
-</script>
 <table border="0">
     <td valign="middle">
-	<div style="font-size:50px;"><%=temperaturer[temperaturer.length - 1][0]%>&deg;C</div>
-	<div style="font-size:30px;"><%=temperaturer[temperaturer.length - 1][2]%>&#37;</div>
+	<div id="datoOgTid" style="font-size:16px;">Tidspunkt</div>
+	<div id="currentTemp" style="font-size:50px;"> &deg;C</div>
+	<div id="humidity" style="font-size:30px;">&#37;</div>
+	<div id="max" style="font-size:20px;">Max: &deg;C</div>
+	<div id="min" style="font-size:20px;">Min: &deg;C</div>
     </td>
     <td align="center">
-	<canvas id="myChart" height="110"></canvas>
+	<canvas id="tempChart" height="110"></canvas>
     </td>
     <td align="center">
         <%if(darkmode == "on"){%>
@@ -59,35 +46,20 @@
     </td>
 </table>
 <div style="font-size:25px;">
-<%sensorverdier.forEach((element, index) => {%>
-    <%=sensorverdier[index].id%> : <%=sensorverdier[index].data[0].value%>&deg;C
-<% });%>
 </div>
+<div id="json"></div>
 
 <!--script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.8.0/Chart.js"></script-->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
-var ctx = document.getElementById('myChart');
 
-function colorize() {
-    return (ctx) => {
-        var v = ctx.parsed.y;
-        var c = v < 5 ? '#44DE28'
-            : v < 10 ? '#F46300'
-                : v < 15 ? '#D60000'
-                    : '#0358B6';
+  const ctxtemp = document.getElementById('tempChart');
 
-        return c ;
-    };
-}
-
-</script>
-<script>
-    var myChart = new Chart(ctx, {
-        type: 'line',
-        data: {
-            labels: labels,
-            datasets: [{
+  var charting = new Chart(ctxtemp, {
+    type: 'line',
+    data: {
+      labels: ['Red', 'Blue', 'Yellow', 'Green', 'Purple', 'Orange'],
+      datasets: [{
 			label: 'Temperatur',
 		        <%if(darkmode == "on"){%>
 			borderColor: 'white',
@@ -95,9 +67,10 @@ function colorize() {
 		        <%if(darkmode == "off"){%>
 			borderColor: 'black',
 			<%}%>
-	                data: values
-                }]
-        }, 
+        data: [12, 19, 3, 5, 2, 3],
+        borderWidth: 3
+      }]
+    },
 	options:{
 		pointRadius: 0,
 		<%if(darkmode == "on"){%>
@@ -138,7 +111,50 @@ function colorize() {
 			}
 		}
 	}
-    })
+  });
+ 
+
+async function load() {
+      try {
+        const response = await fetch('/temperaturer');
+        const data = await response.json();
+	var dataverdier = [];
+	var labelverdier = [];
+	var maxvalue = data[0].temp;
+	var minvalue = data[0].temp;
+	for(var t = 0; t < data.length; t++){
+	   //alert('Temp: ' + t + ', :' + data[t].temp);
+	   if(data[t].temp > maxvalue){
+	      maxvalue = data[t].temp;
+	   }
+	   if(data[t].temp < minvalue){
+	      minvalue = data[t].temp;
+	   }
+           dataverdier[t] = data[t].temp
+	   labelverdier[t] = data[t].time
+           //document.getElementById('json').innerHTML = `Temperatur: ${data[t].temp}°C Kl:${data[t].time}`;
+	}
+	var chartcanvas = document.getElementById('tempChart');
+	charting.data.labels = labelverdier;
+        charting.data.datasets[0].data = dataverdier;
+        charting.update();
+	var maxDiv = document.getElementById('max');
+	var minDiv = document.getElementById('min');
+        maxDiv.innerHTML = `Max: ${maxvalue}°C`;
+        minDiv.innerHTML = `Min: ${minvalue}°C`;
+	document.getElementById('currentTemp').innerHTML = Number(data[data.length - 1].temp).toFixed(1) + "°C";
+	document.getElementById('humidity').innerHTML =  data[data.length - 1].hum + "&#37;";
+	document.getElementById('datoOgTid').innerHTML =  data[data.length - 1].date + ", " + data[data.length -1].time;
+	//alert('Test' + chartcanvas.height);
+	//Resetter status hvis vi kommer så langt...
+        document.getElementById('json').innerHTML = '';
+      } catch (error) {
+        document.getElementById('json').innerHTML = 'Error loading data';
+      }
+}
+load();
+const updateInterval = setInterval(load, 10000);
+
 </script>
 </body>
 </html>

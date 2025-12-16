@@ -109,6 +109,7 @@ function updateAllTemp(){
 	  	              		tempArray[0] = values.data[0].value;
         		                tempArray[1] = currentDate.getHours() + ":" + pad(2, currentDate.getMinutes());
                 		        tempArray[2] = values.data[1].value;
+        		                tempArray[3] = currentDate.getDate() + "/" + (currentDate.getMonth() + 1);
                         		temperaturer.push(tempArray);
     	                   		logging("ID for sensor:" + values.id);
 	        	                logging("Values for sensor:" + tempArray[0] + ", " + tempArray[2]);
@@ -149,12 +150,23 @@ app.get('/mode/:mode', function (req, res) {
     }
 })
 
+app.get('/temperaturer', (req, res) => {
+	const data = [];
+	for (let i = 0; i < temperaturer.length; i++) {
+	  var element = {};
+	  element.temp = temperaturer[i][0];
+	  element.time = temperaturer[i][1];
+	  element.hum = temperaturer[i][2];
+	  element.date = temperaturer[i][3];
+	  data.push(element);
+	}
+	//data = [{ "temp": "22.5", "time": "18:10" },{"temp":"22.4", "time":"18:15"}]; // Example
+  	res.json(data);
+});
 
 app.get('/', function (req, res) {
 	res.render('index',
 	{
-	       	temperaturer,
-            sensorverdier,
 		    darkmode
        	})
 })
