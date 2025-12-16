@@ -107,7 +107,7 @@ function updateAllTemp(){
                 		        }
                         		var tempArray = [];
 	  	              		tempArray[0] = values.data[0].value;
-        		                tempArray[1] = currentDate.getHours() + ":" + pad(2, currentDate.getMinutes());
+        		                tempArray[1] = currentDate.getHours() + ":" + ('00' + currentDate.getMinutes()).slice(-2);
                 		        tempArray[2] = values.data[1].value;
         		                tempArray[3] = currentDate.getDate() + "/" + (currentDate.getMonth() + 1);
                         		temperaturer.push(tempArray);
