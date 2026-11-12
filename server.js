@@ -18,7 +18,11 @@ var fs = require('fs');
 var util = require('util');
 var oppstartstidspunkt = new Date();
 
-var log_file = fs.createWriteStream(__dirname + '/logging' + oppstartstidspunkt.toISOString() +'.log', {flags : 'w'});
+// Kolon er ugyldig i filnavn på Windows. 2026-11-12T10:51:41.054Z -> 2026-11-12T10-51-41.054Z
+var log_file = fs.createWriteStream(__dirname + '/logging' + oppstartstidspunkt.toISOString().replace(/:/g, '-') + '.log', {flags : 'w'});
+log_file.on('error', function (err) {
+	process.stdout.write('Kunne ikke skrive loggfil: ' + err.message + '\n');
+});
 var log_stdout = process.stdout;
 
 
@@ -28,6 +32,12 @@ var temperaturer = [];
 
 var sensorverdier = [];
 var devices = [];
+var lastStableTemp = null;
+var lastStableHum = null;
+var pendingTemp = null;
+var pendingCount = 0;
+var TEMP_JUMP = 2;
+var TEMP_CONFIRM = 3;
 
 var darkmode = "on";
 
@@ -68,6 +78,49 @@ function pad (length, str) {
       return str.length < length ? pad("0" + str, length) : str;
 }
 
+function dataValue(data, name, fallbackIndex) {
+	if (!data) {
+		return undefined;
+	}
+	for (var i = 0; i < data.length; i++) {
+		if (data[i] && data[i].name === name) {
+			return data[i].value;
+		}
+	}
+	return data[fallbackIndex] ? data[fallbackIndex].value : undefined;
+}
+
+// A 433 MHz packet sometimes decodes as one wild sample (2.5, 2.5, 21.7, 2.5).
+// Keep the last accepted temperature unless the new level repeats.
+function trackTemp(raw) {
+	var value = Number(raw);
+	if (!isFinite(value)) {
+		return null;
+	}
+	if (lastStableTemp !== null && Math.abs(value - lastStableTemp) <= TEMP_JUMP) {
+		lastStableTemp = value;
+		pendingTemp = null;
+		pendingCount = 0;
+		return lastStableTemp;
+	}
+	if (pendingTemp !== null && Math.abs(value - pendingTemp) <= 0.5) {
+		pendingCount++;
+	} else {
+		pendingTemp = value;
+		pendingCount = 1;
+	}
+	if (pendingCount >= TEMP_CONFIRM) {
+		lastStableTemp = value;
+		pendingTemp = null;
+		pendingCount = 0;
+		return lastStableTemp;
+	}
+	if (lastStableTemp !== null) {
+		logging("Ignorerer hopp i temperatur: " + value + " (bruker " + lastStableTemp + ")");
+	}
+	return lastStableTemp;
+}
+
 function updateAllTemp(){
     var currentDate = new Date();
     getDevices()
@@ -99,22 +152,32 @@ function updateAllTemp(){
 			}
                     	sensorverdier[index] = values;
                     	if (values.model == config.outdoor) {
+				var rawTemp = dataValue(values.data, "temp", 0);
+				var rawHum = dataValue(values.data, "humidity", 1);
+				var stableTemp = trackTemp(rawTemp);
+				if (stableTemp !== null && Math.abs(Number(rawTemp) - stableTemp) <= TEMP_JUMP) {
+					lastStableHum = rawHum;
+				}
 				if(reloadIn <= 0){
-					reloadIn = newTempValues;
-		                        logging("Funnet " + config.outdoor + ", legger til i grafarray")
-        		                if (temperaturer.length > 479) {
-        		                    temperaturer.shift();
-                		        }
-                        		var tempArray = [];
-	  	              		tempArray[0] = values.data[0].value;
-        		                tempArray[1] = currentDate.getHours() + ":" + ('00' + currentDate.getMinutes()).slice(-2);
-                		        tempArray[2] = values.data[1].value;
-        		                tempArray[3] = currentDate.getDate() + "/" + (currentDate.getMonth() + 1);
-                        		temperaturer.push(tempArray);
-    	                   		logging("ID for sensor:" + values.id);
-	        	                logging("Values for sensor:" + tempArray[0] + ", " + tempArray[2]);
-        	        	        logging("Time for value:" + tempArray[1]);
-                	        	logging("Length of array:" + temperaturer.length);
+					if (stableTemp === null) {
+						logging("Venter på stabil temperatur, råverdi: " + rawTemp);
+					} else {
+						reloadIn = newTempValues;
+						logging("Funnet " + config.outdoor + ", legger til i grafarray")
+						if (temperaturer.length > 479) {
+							temperaturer.shift();
+						}
+						var tempArray = [];
+						tempArray[0] = stableTemp;
+						tempArray[1] = currentDate.getHours() + ":" + ('00' + currentDate.getMinutes()).slice(-2);
+						tempArray[2] = lastStableHum != null ? lastStableHum : rawHum;
+						tempArray[3] = currentDate.getDate() + "/" + (currentDate.getMonth() + 1);
+						temperaturer.push(tempArray);
+						logging("ID for sensor:" + values.id);
+						logging("Values for sensor:" + tempArray[0] + ", " + tempArray[2]);
+						logging("Time for value:" + tempArray[1]);
+						logging("Length of array:" + temperaturer.length);
+					}
 				} else {
 					reloadIn = reloadIn - reloadverdi;
 				}
