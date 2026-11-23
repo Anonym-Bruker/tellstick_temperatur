@@ -28,14 +28,12 @@ var log_stdout = process.stdout;
 
 app.set('view engine', 'ejs');
 
-var temperaturer = [];
-
 var sensorverdier = [];
 var devices = [];
-var lastStableTemp = null;
-var lastStableHum = null;
-var pendingTemp = null;
-var pendingCount = 0;
+var sensorHistories = {};
+var sensorState = {};
+var sensorOrder = [];
+var currentSensor = 0;
 var TEMP_JUMP = 2;
 var TEMP_CONFIRM = 3;
 
@@ -90,39 +88,154 @@ function dataValue(data, name, fallbackIndex) {
 	return data[fallbackIndex] ? data[fallbackIndex].value : undefined;
 }
 
+function ensureSensor(id) {
+	id = String(id);
+	if (!sensorState[id]) {
+		sensorState[id] = {
+			id: id,
+			lastStableTemp: null,
+			lastStableHum: null,
+			pendingTemp: null,
+			pendingCount: 0,
+			name: "",
+			model: ""
+		};
+	}
+	if (!sensorHistories[id]) {
+		sensorHistories[id] = [];
+	}
+	return sensorState[id];
+}
+
+function labelForSensor(id) {
+	var state = sensorState[String(id)];
+	if (state && state.name && String(state.name).trim() !== "") {
+		return String(state.name);
+	}
+	return "Sensor " + id;
+}
+
+function syncSensorOrder() {
+	var next = [];
+	var seen = {};
+	for (var i = 0; i < devices.length; i++) {
+		var id = String(devices[i].id);
+		if (sensorState[id] && !seen[id]) {
+			next.push(id);
+			seen[id] = true;
+		}
+	}
+	for (var knownId in sensorState) {
+		if (!seen[knownId]) {
+			next.push(knownId);
+			seen[knownId] = true;
+		}
+	}
+	sensorOrder = next;
+	if (sensorOrder.length === 0) {
+		currentSensor = 0;
+		return;
+	}
+	if (currentSensor < 0 || currentSensor >= sensorOrder.length) {
+		currentSensor = 0;
+	}
+}
+
+function stepSensor(delta) {
+	syncSensorOrder();
+	if (sensorOrder.length === 0) {
+		return;
+	}
+	currentSensor = (currentSensor + delta) % sensorOrder.length;
+	if (currentSensor < 0) {
+		currentSensor += sensorOrder.length;
+	}
+	logging("Bytter til " + labelForSensor(sensorOrder[currentSensor]));
+}
+
+function sensorView() {
+	syncSensorOrder();
+	var count = sensorOrder.length;
+	var position = 0;
+	var label = "No sensor";
+	if (count > 0) {
+		position = currentSensor + 1;
+		label = labelForSensor(sensorOrder[currentSensor]);
+	}
+	return {
+		darkmode: darkmode,
+		sensorLabel: label,
+		sensorPosition: position,
+		sensorCount: count
+	};
+}
+
+function pushHistory(id, temp, hum, currentDate) {
+	var history = sensorHistories[String(id)];
+	if (!history) {
+		history = [];
+		sensorHistories[String(id)] = history;
+	}
+	if (history.length > 479) {
+		history.shift();
+	}
+	var tempArray = [];
+	tempArray[0] = temp;
+	tempArray[1] = currentDate.getHours() + ":" + ('00' + currentDate.getMinutes()).slice(-2);
+	tempArray[2] = hum != null ? hum : null;
+	tempArray[3] = currentDate.getDate() + "/" + (currentDate.getMonth() + 1);
+	history.push(tempArray);
+	logging("ID for sensor:" + id);
+	logging("Values for sensor:" + tempArray[0] + ", " + tempArray[2]);
+	logging("Time for value:" + tempArray[1]);
+	logging("Length of array:" + history.length);
+}
+
+function currentSeries() {
+	if (sensorOrder.length === 0) {
+		return [];
+	}
+	syncSensorOrder();
+	return sensorHistories[sensorOrder[currentSensor]] || [];
+}
+
 // A 433 MHz packet sometimes decodes as one wild sample (2.5, 2.5, 21.7, 2.5).
-// Keep the last accepted temperature unless the new level repeats.
-function trackTemp(raw) {
+// Each sensor keeps its own last accepted temperature unless the new level repeats.
+function trackTemp(state, raw) {
 	var value = Number(raw);
 	if (!isFinite(value)) {
 		return null;
 	}
-	if (lastStableTemp !== null && Math.abs(value - lastStableTemp) <= TEMP_JUMP) {
-		lastStableTemp = value;
-		pendingTemp = null;
-		pendingCount = 0;
-		return lastStableTemp;
+	if (state.lastStableTemp !== null && Math.abs(value - state.lastStableTemp) <= TEMP_JUMP) {
+		state.lastStableTemp = value;
+		state.pendingTemp = null;
+		state.pendingCount = 0;
+		return state.lastStableTemp;
 	}
-	if (pendingTemp !== null && Math.abs(value - pendingTemp) <= 0.5) {
-		pendingCount++;
+	if (state.pendingTemp !== null && Math.abs(value - state.pendingTemp) <= 0.5) {
+		state.pendingCount++;
 	} else {
-		pendingTemp = value;
-		pendingCount = 1;
+		state.pendingTemp = value;
+		state.pendingCount = 1;
 	}
-	if (pendingCount >= TEMP_CONFIRM) {
-		lastStableTemp = value;
-		pendingTemp = null;
-		pendingCount = 0;
-		return lastStableTemp;
+	if (state.pendingCount >= TEMP_CONFIRM) {
+		state.lastStableTemp = value;
+		state.pendingTemp = null;
+		state.pendingCount = 0;
+		return state.lastStableTemp;
 	}
-	if (lastStableTemp !== null) {
-		logging("Ignorerer hopp i temperatur: " + value + " (bruker " + lastStableTemp + ")");
+	if (state.lastStableTemp !== null) {
+		logging("Ignorerer hopp i temperatur for " + state.id + ": " + value + " (bruker " + state.lastStableTemp + ")");
 	}
-	return lastStableTemp;
+	return state.lastStableTemp;
 }
 
 function updateAllTemp(){
     var currentDate = new Date();
+    var dueForSample = reloadIn <= 0;
+    if (!dueForSample) {
+        reloadIn = reloadIn - reloadverdi;
+    }
     getDevices()
     //logging("Oppdaterer temperaturer for følgende antall enheter: " +  devices.length);
 
@@ -141,7 +254,7 @@ function updateAllTemp(){
             	try {
                 	var values = JSON.parse(body);
                     	//logging("Hentet ut data");
-                    	//logging("Full metering data:" + JSON.stringify(values));
+                    	logging("Full metering data:" + JSON.stringify(values));
                     	//logging("1: ReloadIn: " + reloadIn);
 		    	if(values.data != undefined && values.data[0] !=undefined)
 			{
@@ -150,39 +263,34 @@ function updateAllTemp(){
 			{
 				logging("Emhet nr: " + index + ", data undefined....")
 			}
-                    	sensorverdier[index] = values;
-                    	if (values.model == config.outdoor) {
-				var rawTemp = dataValue(values.data, "temp", 0);
-				var rawHum = dataValue(values.data, "humidity", 1);
-				var stableTemp = trackTemp(rawTemp);
-				if (stableTemp !== null && Math.abs(Number(rawTemp) - stableTemp) <= TEMP_JUMP) {
-					lastStableHum = rawHum;
-				}
-				if(reloadIn <= 0){
-					if (stableTemp === null) {
-						logging("Venter på stabil temperatur, råverdi: " + rawTemp);
-					} else {
-						reloadIn = newTempValues;
-						logging("Funnet " + config.outdoor + ", legger til i grafarray")
-						if (temperaturer.length > 479) {
-							temperaturer.shift();
-						}
-						var tempArray = [];
-						tempArray[0] = stableTemp;
-						tempArray[1] = currentDate.getHours() + ":" + ('00' + currentDate.getMinutes()).slice(-2);
-						tempArray[2] = lastStableHum != null ? lastStableHum : rawHum;
-						tempArray[3] = currentDate.getDate() + "/" + (currentDate.getMonth() + 1);
-						temperaturer.push(tempArray);
-						logging("ID for sensor:" + values.id);
-						logging("Values for sensor:" + tempArray[0] + ", " + tempArray[2]);
-						logging("Time for value:" + tempArray[1]);
-						logging("Length of array:" + temperaturer.length);
-					}
+			sensorverdier[index] = values;
+			var rawTemp = dataValue(values.data, "temp", 0);
+			if (rawTemp === undefined) {
+				return;
+			}
+			var id = String(values.id != null ? values.id : element.id);
+			var state = ensureSensor(id);
+			state.name = values.name || "";
+			state.model = values.model || "";
+			syncSensorOrder();
+			var rawHum = dataValue(values.data, "humidity", 1);
+			var stableTemp = trackTemp(state, rawTemp);
+			if (stableTemp !== null && Math.abs(Number(rawTemp) - stableTemp) <= TEMP_JUMP) {
+				state.lastStableHum = rawHum;
+			}
+			var history = sensorHistories[id];
+			if (dueForSample || history.length === 0) {
+				if (stableTemp === null) {
+					logging("Venter på stabil temperatur for " + id + ", råverdi: " + rawTemp);
 				} else {
-					reloadIn = reloadIn - reloadverdi;
+					if (dueForSample && reloadIn <= 0) {
+						reloadIn = newTempValues;
+					}
+					var hum = state.lastStableHum != null ? state.lastStableHum : rawHum;
+					logging("Legger til måling for " + labelForSensor(id));
+					pushHistory(id, stableTemp, hum, currentDate);
 				}
-                	    	//logging("2: ReloadIn: " + reloadIn);
-	                }
+			}
        	        } catch (e) {
 			console.log('invalid json: ' + body);
 	            	// updateTempLocal();
@@ -213,14 +321,25 @@ app.get('/mode/:mode', function (req, res) {
     }
 })
 
+app.get('/sensor/next', function (req, res) {
+	stepSensor(1);
+	res.redirect('/');
+});
+
+app.get('/sensor/prev', function (req, res) {
+	stepSensor(-1);
+	res.redirect('/');
+});
+
 app.get('/temperaturer', (req, res) => {
+	const series = currentSeries();
 	const data = [];
-	for (let i = 0; i < temperaturer.length; i++) {
+	for (let i = 0; i < series.length; i++) {
 	  var element = {};
-	  element.temp = temperaturer[i][0];
-	  element.time = temperaturer[i][1];
-	  element.hum = temperaturer[i][2];
-	  element.date = temperaturer[i][3];
+	  element.temp = series[i][0];
+	  element.time = series[i][1];
+	  element.hum = series[i][2];
+	  element.date = series[i][3];
 	  data.push(element);
 	}
 	//data = [{ "temp": "22.5", "time": "18:10" },{"temp":"22.4", "time":"18:15"}]; // Example
@@ -228,10 +347,7 @@ app.get('/temperaturer', (req, res) => {
 });
 
 app.get('/', function (req, res) {
-	res.render('index',
-	{
-		    darkmode
-       	})
+	res.render('index', sensorView())
 })
 
 setInterval(function(){
@@ -267,27 +383,17 @@ function updateTempLocal(){
                         sensorverdier.shift();
                     }
                     sensorverdier[index] = values;
-                    if (values.name == config.outdoor) {
-                        logging("Funnet " + config.outdoor + ", legger til i grafarray")
-                        if (temperaturer.length > 479) {
-                            temperaturer.shift();
-                        } else if (values != null && values.data != undefined) {
-                            var tempArray = [];
-                            tempArray[0] = values.data[0].value;
-                            tempArray[1] = currentDate.getHours() + ":" + pad(2, currentDate.getMinutes());
-                            tempArray[2] = values.data[1].value;
-                            temperaturer.push(tempArray);
-                            logging("ID for sensor:" + values.id);
-                            logging("Value for sensor:" + tempArray[0]);
-                            logging("Date for value:" + tempArray[1]);
-                            logging("Lengt of array:" + temperaturer.length);
-                            logging("Full metering data:" + JSON.stringify(values));
-                        } else {
-                            var tempArray = [];
-                            tempArray[0] = "N/A";
-                            tempArray[1] = currentDate.getHours() + ":" + pad(2, currentDate.getMinutes());
-                            temperaturer.push(tempArray);
-                        }
+                    var rawTemp = dataValue(values.data, "temp", 0);
+                    if (rawTemp !== undefined) {
+                        var id = String(values.id != null ? values.id : element.id);
+                        var state = ensureSensor(id);
+                        state.name = values.name || "";
+                        state.model = values.model || "";
+                        syncSensorOrder();
+                        var rawHum = dataValue(values.data, "humidity", 1);
+                        logging("Funnet sensor " + id + ", legger til i grafarray");
+                        logging("Full metering data:" + JSON.stringify(values));
+                        pushHistory(id, rawTemp, rawHum, currentDate);
                     }
                 });
             }).on("error", (err) => {

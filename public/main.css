@@ -2,3 +2,11 @@ input{
     height: 25px;
     width:100px;
 }
+
+.sensor-nav form {
+    display: inline;
+}
+
+.sensor-nav {
+    margin-bottom: 8px;
+}

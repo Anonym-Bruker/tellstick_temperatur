@@ -19,6 +19,7 @@
 <body>
 <table border="0">
     <td valign="middle">
+	<div id="sensorHeading" style="font-size:20px;"><%= sensorLabel %><% if (sensorCount > 0) { %> (<%= sensorPosition %>/<%= sensorCount %>)<% } %></div>
 	<div id="datoOgTid" style="font-size:16px;">Tidspunkt</div>
 	<div id="currentTemp" style="font-size:50px;"> &deg;C</div>
 	<div id="humidity" style="font-size:30px;">&#37;</div>
@@ -29,6 +30,14 @@
 	<canvas id="tempChart" height="110"></canvas>
     </td>
     <td align="center">
+        <div class="sensor-nav">
+            <form action="/sensor/prev" method="get">
+                <input type="submit" value="Previous">
+            </form>
+            <form action="/sensor/next" method="get">
+                <input type="submit" value="Next">
+            </form>
+        </div>
         <%if(darkmode == "on"){%>
             <form action="/mode/daymode" method="get">
                 <input type="submit" value="Darkmode off">
@@ -120,6 +129,18 @@ async function load() {
         const data = await response.json();
 	var dataverdier = [];
 	var labelverdier = [];
+	if (!Array.isArray(data) || data.length === 0) {
+	  document.getElementById('currentTemp').innerHTML = '--°C';
+	  document.getElementById('humidity').innerHTML = '--%';
+	  document.getElementById('max').innerHTML = 'Max: --°C';
+	  document.getElementById('min').innerHTML = 'Min: --°C';
+	  document.getElementById('datoOgTid').innerHTML = 'No readings yet';
+	  document.getElementById('json').innerHTML = '';
+	  charting.data.labels = [];
+	  charting.data.datasets[0].data = [];
+	  charting.update();
+	  return;
+	}
 	var maxvalue = data[0].temp;
 	var minvalue = data[0].temp;
 	for(var t = 0; t < data.length; t++){
@@ -143,7 +164,8 @@ async function load() {
         maxDiv.innerHTML = `Max: ${maxvalue}°C`;
         minDiv.innerHTML = `Min: ${minvalue}°C`;
 	document.getElementById('currentTemp').innerHTML = Number(data[data.length - 1].temp).toFixed(1) + "°C";
-	document.getElementById('humidity').innerHTML =  data[data.length - 1].hum + "&#37;";
+	var humText = data[data.length - 1].hum;
+	document.getElementById('humidity').innerHTML = (humText === null || humText === undefined || humText === "") ? "--%" : humText + "&#37;";
 	document.getElementById('datoOgTid').innerHTML =  data[data.length - 1].date + ", " + data[data.length -1].time;
 	//alert('Test' + chartcanvas.height);
 	//Resetter status hvis vi kommer så langt...
