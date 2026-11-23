@@ -254,7 +254,7 @@ function updateAllTemp(){
             	try {
                 	var values = JSON.parse(body);
                     	//logging("Hentet ut data");
-                    	logging("Full metering data:" + JSON.stringify(values));
+                    	//logging("Full metering data:" + JSON.stringify(values));
                     	//logging("1: ReloadIn: " + reloadIn);
 		    	if(values.data != undefined && values.data[0] !=undefined)
 			{
