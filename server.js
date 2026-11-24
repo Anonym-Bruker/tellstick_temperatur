@@ -112,7 +112,7 @@ function labelForSensor(id) {
 	if (state && state.name && String(state.name).trim() !== "") {
 		return String(state.name);
 	}
-	return "Sensor " + id;
+	return "ID: " + id;
 }
 
 function syncSensorOrder() {

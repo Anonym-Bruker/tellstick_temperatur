@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="X-UA-Compatible" content="ie=edge">
-    <title>Strømforbruk-Elvia</title>
+    <title>Temperaturmålere</title>
     <link rel="stylesheet" href="main.css">
     <%if(darkmode == "on"){%>
     <link rel="stylesheet" href="dark.css">
@@ -27,16 +27,19 @@
 	<div id="min" style="font-size:20px;">Min: &deg;C</div>
     </td>
     <td align="center">
-	<canvas id="tempChart" height="110"></canvas>
+	<canvas id="tempChart" height="150"></canvas>
     </td>
     <td align="center">
         <div class="sensor-nav">
             <form action="/sensor/prev" method="get">
                 <input type="submit" value="Previous">
             </form>
+		</div>
+		<div class="sensor-nav"></div>
             <form action="/sensor/next" method="get">
                 <input type="submit" value="Next">
             </form>
+			<br/>
         </div>
         <%if(darkmode == "on"){%>
             <form action="/mode/daymode" method="get">
