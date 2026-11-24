@@ -13,23 +13,42 @@
     <link rel="stylesheet" href="light.css">
     <%}%>
 <style>
-  canvas {width:550px;}
+  .dashboard {
+    display: flex;
+    align-items: center;
+    width: 100%;
+  }
+  .side-col {
+    flex: 0 0 auto;
+  }
+  .controls {
+    text-align: center;
+  }
+  .chart-area {
+    flex: 1 1 auto;
+    min-width: 0;
+    height: 150px;
+    position: relative;
+  }
+  .chart-area canvas {
+    display: block;
+  }
 </style>
 </head>
 <body>
-<table border="0">
-    <td valign="middle">
+<div class="dashboard">
+    <div class="side-col">
 	<div id="sensorHeading" style="font-size:16px;"><%= sensorLabel %><% if (sensorCount > 0) { %> (<%= sensorPosition %>/<%= sensorCount %>)<% } %></div>
 	<div id="datoOgTid" style="font-size:16px;">Tidspunkt</div>
 	<div id="currentTemp" style="font-size:50px;"> &deg;C</div>
 	<div id="humidity" style="font-size:30px;">&#37;</div>
 	<div id="max" style="font-size:20px;">Max: &deg;C</div>
 	<div id="min" style="font-size:20px;">Min: &deg;C</div>
-    </td>
-    <td align="center">
-	<canvas id="tempChart" height="150"></canvas>
-    </td>
-    <td align="center">
+    </div>
+    <div class="chart-area">
+	    <canvas id="tempChart"></canvas>
+    </div>
+    <div class="side-col controls">
         <div class="sensor-nav">
             <form action="/sensor/prev" method="get">
                 <input type="submit" value="Previous">
@@ -40,7 +59,6 @@
                 <input type="submit" value="Next">
             </form>
 			<br/>
-        </div>
         <%if(darkmode == "on"){%>
             <form action="/mode/daymode" method="get">
                 <input type="submit" value="Darkmode off">
@@ -55,8 +73,8 @@
         <form action="/mode/reload" method="get">
             <input type="submit" value="Reload page">
         </form>
-    </td>
-</table>
+    </div>
+</div>
 <div style="font-size:25px;">
 </div>
 <div id="json"></div>
@@ -84,6 +102,8 @@
       }]
     },
 	options:{
+		responsive: true,
+		maintainAspectRatio: false,
 		pointRadius: 0,
 		<%if(darkmode == "on"){%>
 		scales: {
@@ -124,7 +144,36 @@
 		}
 	}
   });
- 
+
+  var fitQueued = false;
+  function fitChart() {
+    if (fitQueued) {
+      return;
+    }
+    fitQueued = true;
+    requestAnimationFrame(function () {
+      fitQueued = false;
+      var area = document.querySelector('.chart-area');
+      if (!area) {
+        return;
+      }
+      var width = area.clientWidth;
+      var height = area.clientHeight;
+      if (width < 1 || height < 1) {
+        return;
+      }
+      if (ctxtemp.clientWidth === width && ctxtemp.clientHeight === height) {
+        return;
+      }
+      charting.resize(width, height);
+    });
+  }
+  if (window.ResizeObserver) {
+    new ResizeObserver(fitChart).observe(document.querySelector('.chart-area'));
+  } else {
+    window.addEventListener('resize', fitChart);
+  }
+  fitChart();
 
 async function load() {
       try {
