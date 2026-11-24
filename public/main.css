@@ -1,12 +1,28 @@
-input{
-    height: 25px;
-    width:100px;
+.controls form {
+    margin: 0 0 6px;
 }
 
-.sensor-nav form {
-    display: inline;
+.icon-button {
+    width: 32px;
+    height: 32px;
+    padding: 4px;
+    border: 0;
+    border-radius: 4px;
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
 }
 
-.sensor-nav {
-    margin-bottom: 8px;
+.icon-button:hover,
+.icon-button:focus {
+    background: rgba(128, 128, 128, 0.25);
+}
+
+.icon-button svg {
+    width: 22px;
+    height: 22px;
+    display: block;
 }

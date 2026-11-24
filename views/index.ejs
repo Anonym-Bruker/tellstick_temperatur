@@ -49,29 +49,46 @@
 	    <canvas id="tempChart"></canvas>
     </div>
     <div class="side-col controls">
-        <div class="sensor-nav">
-            <form action="/sensor/prev" method="get">
-                <input type="submit" value="Previous">
-            </form>
-		</div>
-		<div class="sensor-nav"></div>
-            <form action="/sensor/next" method="get">
-                <input type="submit" value="Next">
-            </form>
-			<br/>
+        <form action="/sensor/prev" method="get">
+            <button type="submit" class="icon-button" aria-label="Previous sensor" title="Previous sensor">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M14.5 5.5 L8 12 L14.5 18.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+            </button>
+        </form>
+        <form action="/sensor/next" method="get">
+            <button type="submit" class="icon-button" aria-label="Next sensor" title="Next sensor">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M9.5 5.5 L16 12 L9.5 18.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+            </button>
+        </form>
         <%if(darkmode == "on"){%>
             <form action="/mode/daymode" method="get">
-                <input type="submit" value="Darkmode off">
+                <button type="submit" class="icon-button" aria-label="Light mode" title="Light mode">
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <circle cx="12" cy="12" r="3.5" fill="none" stroke="currentColor" stroke-width="2"/>
+                        <path d="M12 3.5v2.2M12 18.3v2.2M3.5 12h2.2M18.3 12h2.2M6 6l1.6 1.6M16.4 16.4L18 18M18 6l-1.6 1.6M7.6 16.4L6 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                    </svg>
+                </button>
             </form>
         <%}%>
         <%if(darkmode == "off"){%>
             <form action="/mode/1" method="get">
-                <input type="submit" value="Darkmode on">
+                <button type="submit" class="icon-button" aria-label="Dark mode" title="Dark mode">
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M16.5 14.5A6.5 6.5 0 0 1 9.2 4.2 6.8 6.8 0 1 0 16.5 14.5z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+                    </svg>
+                </button>
             </form>
         <%}%>
-	<br/>
         <form action="/mode/reload" method="get">
-            <input type="submit" value="Reload page">
+            <button type="submit" class="icon-button" aria-label="Reload page" title="Reload page">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                    <path d="M19.5 4.5V9H15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+            </button>
         </form>
     </div>
 </div>
