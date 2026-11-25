@@ -101,9 +101,45 @@
 <script>
 
   const ctxtemp = document.getElementById('tempChart');
+  const dayLineColor = "<%= darkmode == "on" ? "rgba(255,255,255,0.9)" : "rgba(0,0,0,0.8)" %>";
+
+  const dayBoundaryPlugin = {
+    id: 'dayBoundary',
+    afterDatasetsDraw: function (chart) {
+      var boundaries = chart.$dayBoundaries || [];
+      var meta = chart.getDatasetMeta(0);
+      if (!boundaries.length || !meta || !meta.data) {
+        return;
+      }
+      var ctx = chart.ctx;
+      var area = chart.chartArea;
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(area.left, area.top, area.right - area.left, area.bottom - area.top);
+      ctx.clip();
+      ctx.strokeStyle = dayLineColor;
+      ctx.lineWidth = 1;
+      ctx.setLineDash([4, 4]);
+      for (var i = 0; i < boundaries.length; i++) {
+        var index = boundaries[i];
+        var prev = meta.data[index - 1];
+        var next = meta.data[index];
+        if (!prev || !next) {
+          continue;
+        }
+        var x = (prev.x + next.x) / 2;
+        ctx.beginPath();
+        ctx.moveTo(x, area.top);
+        ctx.lineTo(x, area.bottom);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+  };
 
   var charting = new Chart(ctxtemp, {
     type: 'line',
+    plugins: [dayBoundaryPlugin],
     data: {
       labels: ['Red', 'Blue', 'Yellow', 'Green', 'Purple', 'Orange'],
       datasets: [{
@@ -207,11 +243,14 @@ async function load() {
 	  document.getElementById('json').innerHTML = '';
 	  charting.data.labels = [];
 	  charting.data.datasets[0].data = [];
+	  charting.$dayBoundaries = [];
 	  charting.update();
 	  return;
 	}
 	var maxvalue = data[0].temp;
 	var minvalue = data[0].temp;
+	var dayBoundaries = [];
+	var previousDate = data[0].date;
 	for(var t = 0; t < data.length; t++){
 	   //alert('Temp: ' + t + ', :' + data[t].temp);
 	   if(data[t].temp > maxvalue){
@@ -220,6 +259,10 @@ async function load() {
 	   if(data[t].temp < minvalue){
 	      minvalue = data[t].temp;
 	   }
+	   if (t > 0 && data[t].date !== previousDate) {
+	      dayBoundaries.push(t);
+	      previousDate = data[t].date;
+	   }
            dataverdier[t] = data[t].temp
 	   labelverdier[t] = data[t].time
            //document.getElementById('json').innerHTML = `Temperatur: ${data[t].temp}°C Kl:${data[t].time}`;
@@ -227,6 +270,7 @@ async function load() {
 	var chartcanvas = document.getElementById('tempChart');
 	charting.data.labels = labelverdier;
         charting.data.datasets[0].data = dataverdier;
+        charting.$dayBoundaries = dayBoundaries;
         charting.update();
 	var maxDiv = document.getElementById('max');
 	var minDiv = document.getElementById('min');
