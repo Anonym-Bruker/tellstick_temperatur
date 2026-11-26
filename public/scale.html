@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Scaled Frame</title>
+  <style>
+    body {
+      	margin: 0;
+      	background: #000000;
+      	font-family: system-ui, sans-serif;
+    }
+    .controls {
+    	margin-bottom: 12px;
+    	display: flex;
+    	gap: 8px;
+	color: white;
+    	align-items: center;
+    }
+    button {
+      	font-size: 1.4rem;
+      	width: 36px;
+      	height: 36px;
+      	cursor: pointer;
+	color: white;
+      	background: #000000;
+      	border-radius: 4px;
+    }
+    button:hover { background: #eee; }
+    .scale-label { font-weight: 600; min-width: 50px; }
+    .frame-wrapper {
+      display: inline-block;
+      overflow: hidden;
+      background: #000000;
+    }
+    .iframe-container {
+      position: relative;
+      overflow: hidden;
+    }
+    iframe {
+      border: none;
+      position: absolute;
+      top: 0;
+      left: 0;
+      transform-origin: top left;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="frame-wrapper">
+    <div class="iframe-container" id="container">
+      <iframe id="frame" src="https://www.yr.no/nb/innhold/1-72837/meteogram.svg?mode=dark" title="page"></iframe>
+    </div>  <div class="controls">
+    <button id="down" title="Scale down">↓</button>
+    <button id="up" title="Scale up">↑</button>
+    <span class="scale-label" id="scaleLabel">50%</span>
+  </div>
+  </div>
+  </div>
+  <script>
+    const baseWidth = 240;   // vw at 100%
+    const baseHeight = 250;  // vh at 100%
+    let scale = 0.7;
+    const minScale = 0.2;
+    const maxScale = 1.5;
+    const step = 0.05;
+
+    const container = document.getElementById("container");
+    const frame = document.getElementById("frame");
+    const label = document.getElementById("scaleLabel");
+
+    function update() {
+      scale = Math.round(scale * 100) / 100;
+      scale = Math.max(minScale, Math.min(maxScale, scale));
+
+      const inv = 1 / scale;
+      container.style.width = (baseWidth * scale) + "vw";
+      container.style.height = (baseHeight * scale) + "vh";
+
+      frame.style.width = (inv * 100) + "%";
+      frame.style.height = (inv * 100) + "%";
+      frame.style.transform = `scale(${scale})`;
+
+      label.textContent = Math.round(scale * 100) + "%";
+    }
+
+    document.getElementById("up").addEventListener("click", () => {
+      scale += step;
+      update();
+    });
+
+    document.getElementById("down").addEventListener("click", () => {
+      scale -= step;
+      update();
+    });
+
+    update();
+  </script>
+</body>
+</html>
